@@ -1,5 +1,6 @@
 #include "rtos.h"
 #include "rtos_config.h"
+#include "stddef.h"
 
 LIST_HEAD(ready_task_head);
 
@@ -32,3 +33,13 @@ int task_create(uint32_t *stack_top,void (*func)(void))
     return 0;
 }
 
+/*遍历就绪链表，返回第一个就绪任务*/
+struct task_struct *get_next_ready_task(void)
+{
+    struct list_head *pos;
+    list_for_each(pos,&ready_task_head)
+    {
+        return container_of(pos,struct task_struct,list);
+    }
+    return NULL;
+}
