@@ -5,6 +5,8 @@
 LIST_HEAD(ready_task_head);
 
 static struct task_struct task_pool[MAX_TASK_NUM];
+// 全局正在运行的任务
+struct task_struct *current_task = NULL;
 
 static uint8_t task_count = 0;
 
@@ -44,13 +46,20 @@ struct task_struct *get_next_ready_task(void)
     return NULL;
 }
 
+extern void task_context_switch(void);
 void rtos_schedule(void)
 {
-    struct task_struct *next_tsk = get_next_ready_task();
-    if(!next_tsk)
+    if(!current_task)
     {
-        while(1);
+        current_task = get_next_ready_task();
+        if(!current_task)
+        {
+            while(1);
+        }
+        current_task->task_func();
     }
-
-    next_tsk->task_func();
+    else
+    {
+        task_context_switch();
+    }
 }

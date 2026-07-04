@@ -1,6 +1,6 @@
 #ifndef __RTOS_H__
 #define __RTOS_H__
-
+#include <rtos_config.h>
 #include <stdint.h>
 
 struct list_head{
@@ -30,13 +30,16 @@ static inline void list_add_tail(struct list_head *new_node,struct list_head *he
     __list_add(new_node,head->prev,head);
 }
 
+
+/* 移除一个链表节点 */
 static inline void list_del(struct list_head *entry)
 {
-    entry->next->prev = entry->prev;
-    entry->prev->next = entry->next;
-    entry->next = nullptr;
-    entry->prev = nullptr;
+	struct list_head *prev = entry->prev;
+	struct list_head *next = entry->next;
+	next->prev = prev;
+	prev->next = next;
 }
+
 
 /* 核心宏：通过链表节点反向拿到宿主结构体（对应FreeRTOS偏移计算） */
 #define container_of(ptr, type, member) ({			\
@@ -47,9 +50,10 @@ static inline void list_del(struct list_head *entry)
 
 /*任务结构体*/
 struct task_struct{
-    uint32_t *stack_top;
+    uint32_t *stack_top;        // 栈顶指针
     void (*task_func)(void);
     struct list_head list;
 };
+extern void task_context_switch(void);
 
 #endif
