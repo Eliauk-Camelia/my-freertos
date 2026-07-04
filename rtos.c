@@ -1,6 +1,7 @@
 #include "rtos.h"
 #include "rtos_config.h"
-#include "stddef.h"
+#include <stddef.h>
+
 
 LIST_HEAD(ready_task_head);
 
@@ -25,10 +26,8 @@ int task_create(uint32_t *stack_top,void (*func)(void))
     }
 
     struct task_struct *tsk = &task_pool[task_count];
-    tsk->stack_top = stack_top;
-    tsk->task_func =func;
     INIT_LIST_HEAD(&tsk->list);
-
+    task_stack_init(tsk,stack_top,func);
     list_add_tail(&tsk->list,&ready_task_head);
     task_count ++;
 
@@ -62,4 +61,20 @@ void rtos_schedule(void)
     {
         task_context_switch();
     }
+}
+
+
+/*栈初始化*/
+void task_stack_init(struct task_struct *tsk,uint32_t *stack,void(*entry)(void))
+{
+    uint32_t *sp = stack;
+    *sp-- = 0x01000000; // xPSR
+    *sp-- = (uint32_t)entry; // PC
+    *sp-- = 0xFFFFFFFD; // LR
+    // R0-R3,R12 随意填充
+    for(int i=0;i<4;i++) *sp--=0;
+    *sp-- = 0; // R12
+    // R4~R11 切换时手动保存恢复，初始0
+    for(int i=0;i<8;i++) *sp--=0;
+    tsk->stack_top = sp;
 }
