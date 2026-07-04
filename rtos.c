@@ -43,3 +43,14 @@ struct task_struct *get_next_ready_task(void)
     }
     return NULL;
 }
+
+void rtos_schedule(void)
+{
+    struct task_struct *next_tsk = get_next_ready_task();
+    if(!next_tsk)
+    {
+        while(1);
+    }
+
+    next_tsk->task_func();
+}
