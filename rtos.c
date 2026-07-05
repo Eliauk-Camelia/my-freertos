@@ -56,6 +56,12 @@ int task_create(uint32_t *stack_top, void (*func)(void)) {
 
   struct task_struct *tsk = &task_pool[task_count];
   INIT_LIST_HEAD(&tsk->list);
+  /*
+   * 保存任务入口函数。
+   * 虽然上下文切换通过栈帧中的PC恢复执行（不直接读此字段），
+   * 但保留入口地址便于调试时查看任务对应的函数。
+   */
+  tsk->task_func = func;
   task_stack_init(tsk, stack_top, func);
   list_add_tail(&tsk->list, &ready_task_head);
   task_count++;
@@ -72,16 +78,40 @@ struct task_struct *get_next_ready_task(void) {
   return NULL;
 }
 
+extern void task_start_first(void);
 extern void task_context_switch(void);
 void rtos_schedule(void) {
   if (!current_task) {
-    current_task = get_next_ready_task();
-    if (!current_task) {
+    /*
+     * 首次调度：没有"上一个任务"需要保存上下文。
+     *
+     * 【Bug修复说明】
+     * 旧代码直接 C 调用 current_task->task_func()：
+     *  - 运行在Handler模式(MSP)，而非Thread模式(PSP)
+     *  - 任务函数是无限循环 → ISR永不返回 → 调度器卡死
+     *  - task_func 字段从未被赋值，跳转目标为垃圾值
+     *
+     * task_start_first() 在汇编中设置PSP指向任务栈帧，
+     * 然后触发异常返回 → 硬件自动出栈 → 任务在Thread模式
+     * 下以PSP正常运行。该函数永不返回。
+     */
+    if (!get_next_ready_task()) {
       while (1)
-        ;
+        ; /* 无就绪任务，应在此加入idle任务兜底 */
     }
-    current_task->task_func();
+    task_start_first();
   } else {
+    /*
+     * 轮转调度(Round-Robin)：
+     * 把当前任务从就绪链表原位移除，追加到尾部。
+     * 这样 get_next_ready_task() 会取到下一个任务，
+     * 而非反复返回同一个。
+     *
+     * 必须在 task_context_switch() 之前操作链表：
+     * 切换后"当前任务"已变，再操作就摘错节点了。
+     */
+    list_del(&current_task->list);
+    list_add_tail(&current_task->list, &ready_task_head);
     task_context_switch();
   }
 }
